@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Image Uploader @ Han Wang</title>
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=0" />
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <link rel='stylesheet' href='/cropperjs/dist/cropper.css' />
+    <script src="/cropperjs/dist/cropper.js"></script>
+  </head>
+  <body>
+    <h1>ImageUploader</h1>
+    <div id="dragandrophandler">Drag & Drop Image Here or <font>Click to Upload Image</font></div>
+    <input type="file" style="display: none;" />
+    <div class="img-container">
+      <img class="before-upload" src="" />
+    </div>
+    <button class="next-btn">Next</button>
+    <canvas id="canvas-draw" class="before-mosiac" width="800" height="600"></canvas>
+    <button class="upload-btn">Upload!</button>
+    <input id="img-original" type="hidden" />
+    <h5>您現在可以透過瀏覽您的圖片!</h5>
+    <button class="refresh">上傳另外一張圖片</button>
+  </body>
+  <script>
+    $(document).ready(function(){
+      var image = $('.before-upload');
+      var canvas = document.getElementById('canvas-draw');
+      context = canvas.getContext("2d");
+      var context;
+      var quan = 3; //马赛克的大小
+      var num = 9;
+      $('body').on('click','.refresh',function(){
+        window.location = "/";
+      });
+      $('body').on('click','.upload-btn',function(){
+        canvas.toBlob(function(blob){
+              var multipart = new FormData();
+              multipart.append("file",blob,$('#img-original').val());
+              $.ajax({
+                url: '/ajax_upload_image',
+                type: 'POST',
+                data: multipart,
+                processData: false,
+                contentType: false,
+                success: function(data){
+                  alert(data.msg);
+                  $('.before-mosiac').fadeOut(500);
+                  $('.upload-btn').fadeOut(500);
+                  $('h5').fadeIn(500);
+                  $('.refresh').fadeIn(500);
+                  $('h5').html('您現在可以透過<a href="'+data.url+'">'+data.url+'</a>取得您的圖片');
+                }});
+          }, "image/jpeg", 1);
+      });
+      $('body').on('click','.next-btn',function(e){
+        var can;
+        if(cropper){
+          can = cropper.getCroppedCanvas({
+            width: 800,
+            height: 600
+          });
+          //$('.before-mosiac').src = can.toDataURL();
+          $('h1').html('直接在圖片上塗抹來加入馬賽克!');
+          $('.before-mosiac').fadeIn(500).css('display','block');
+          $('.upload-btn').fadeIn(500);
+          $('.next-btn').fadeOut(500);
+          $('.img-container').fadeOut(500);
+          var quan = 3; //马赛克的大小
+          var num = 9; //一次操作包含马赛克的个数
+          //创建image对象
+          var imgObj = new Image();
+          imgObj.crossOrigin = "Anonymous"; //用于解决图片跨域问题，但在chrome下依旧无效，建议起个node服务或者用safari打开
+          imgObj.src = can.toDataURL();
+          //待图片加载完后，将其显示在canvas上
+          imgObj.onload = function(){
+            context.drawImage(this, 0, 0,canvas.width,canvas.height);//this即是imgObj,保持图片的原始大小
+            start(this);
+          }
+        }
+      });
+      $('body').on('change','input[type=file]',function(e){
+            $('#dragandrophandler').html('Uploading...');
+            var files = e.target.files;
+            $('h1').html(files[0].name);
+            $('#img-original').val(files[0].name);
+            var done = function (url) {
+              $('input[type=file]')[0].value = '';
+              image[0].src = url;
+              console.log(url);
+              cropper = new Cropper(image[0], {
+                aspectRatio: 4/3,
+                viewMode: 1,
+              });
+              $('#dragandrophandler').fadeOut(500);
+              $('.before-upload').fadeIn(500).css("display","block");
+              $('.next-btn').fadeIn(500);
+            };
+            var reader;
+            var file;
+            var url;
+            if (files && files.length > 0) {
+              file = files[0];
+              if (URL) {
+                done(URL.createObjectURL(file));
+              } else if (FileReader) {
+                reader = new FileReader();
+                reader.onload = function (e) {
+                  done(reader.result);
+                };
+                reader.readAsDataURL(file);
+              }else{
+                $('#dragandrophandler').html('Drag & Drop Image Here or <font>Click to Upload Image</font>');
+                $('h1').html('ImageUploader');
+              }
+            }else{
+              $('#dragandrophandler').html('Drag & Drop Image Here or <font>Click to Upload Image</font>');
+              $('h1').html('ImageUploader');
+            }
+       });
+       $('body').on('click','#dragandrophandler',function(e){
+         $('input[type=file]')[0].click();
+       });
+       $('body').on('dragenter','#dragandrophandler',function(e){
+         e.stopPropagation();
+         e.preventDefault();
+         $(this).addClass('over');
+       });
+       $('body').on('dragover','#dragandrophandler',function(e){
+         e.stopPropagation();
+         e.preventDefault();
+       });
+       $('body').on('drop','#dragandrophandler',function(e){
+         $(this).removeClass('over');
+         e.preventDefault();
+         $('#dragandrophandler').html('Uploading...');
+         $('h1').html('Uploading...');
+         var files = e.originalEvent.dataTransfer.files;
+         $('h1').html(files[0].name);
+         $('#img-original').val(files[0].name);
+         var done = function (url) {
+           $('input[type=file]')[0].value = '';
+           image[0].src = url;
+           console.log(url);
+           cropper = new Cropper(image[0], {
+             aspectRatio: 4/3,
+             viewMode: 1,
+           });
+           $('#dragandrophandler').fadeOut(500);
+           $('.before-upload').fadeIn(500).css("display","block");
+           $('.next-btn').fadeIn(500);
+         };
+         var reader;
+         var file;
+         var url;
+         if (files && files.length > 0) {
+           file = files[0];
+           if (URL) {
+             done(URL.createObjectURL(file));
+           } else if (FileReader) {
+             reader = new FileReader();
+             reader.onload = function (e) {
+               done(reader.result);
+             };
+             reader.readAsDataURL(file);
+           }else{
+             $('#dragandrophandler').html('Drag & Drop Image Here or <font>Click to Upload Image</font>');
+             $('h1').html('ImageUploader');
+           }
+         }else{
+           $('#dragandrophandler').html('Drag & Drop Image Here or <font>Click to Upload Image</font>');
+           $('h1').html('ImageUploader');
+         }
+       });
+       function start(obj){
+            //修改缓存
+            var lastImgArr = [];
+            canvas.onmousedown = function(ev){
+                //每次下笔前先保存
+                lastImgArr.push(context.getImageData(0,0,canvas.width,canvas.height));
+                var ev=ev || window.event;
+                var dx = ev.clientX-canvas.offsetLeft;
+                var dy = ev.clientY-canvas.offsetTop;
+                drawLine(obj,dx,dy);
+                document.onmousemove = function(ev){
+                    var ev = ev || window.event;
+                    var mx = ev.clientX-canvas.offsetLeft;
+                    var my = ev.clientY-canvas.offsetTop;
+                    if(Math.pow(dx-mx,2)+Math.pow(dy-my,2)>= Math.pow(quan*num,2)){
+                      drawLine(obj,mx,my);
+                      dx = mx;
+                      dy = my;
+                    }
+                };
+                document.onmouseup = function(){
+                    document.onmousemove = null;
+                    document.onmouseup = null;
+                };
+            }
+
+          }
+          function drawLine(obj,dx,dy){
+            var originalImgData = context.getImageData(0,0,canvas.width,canvas.height);
+            var originalPxData = originalImgData.data;
+            var modifyImgData = context.getImageData(0,0,canvas.width,canvas.height);
+            var modifyPxData = modifyImgData.data;
+            for(var i=dx-quan*num;i<dx+quan*num;i = i+2*quan+1){
+              for(var j=dy-quan*num;j<dy+quan*num;j = j+2*quan+1){
+                if(!((i==dx-quan*num&&j==dy-quan*num)||(i==dx-quan*num&&j==dy-quan*num+2*quan+1)||
+                  (i==dx-quan*num&&j==dy-quan*num+4*quan+2)||(i==dx-quan*num&&j==dy-quan*num+12*quan+6)||
+                  (i==dx-quan*num&&j==dy-quan*num+14*quan+7)||(i==dx-quan*num&&j==dy-quan*num+16*quan+8)||
+                  (i==dx-quan*num+16*quan+8&&j==dy-quan*num)||(i==dx-quan*num+16*quan+8&&j==dy-quan*num+2*quan+1)||
+                  (i==dx-quan*num+16*quan+8&&j==dy-quan*num+4*quan+2)||(i==dx-quan*num+16*quan+8&&j==dy-quan*num+12*quan+6)||
+                  (i==dx-quan*num+16*quan+8&&j==dy-quan*num+14*quan+7)||(i==dx-quan*num+16*quan+8&&j==dy-quan*num+16*quan+8)||
+                  (i==dx-quan*num+2*quan+1&&j==dy-quan*num)||(i==dx-quan*num+4*quan+2&&j==dy-quan*num)||
+                  (i==dx-quan*num+12*quan+6&&j==dy-quan*num)||(i==dx-quan*num+14*quan+7&&j==dy-quan*num)||
+                  (i==dx-quan*num+2*quan+1&&j==dy-quan*num+16*quan+8)||(i==dx-quan*num+4*quan+2&&j==dy-quan*num+16*quan+8)||
+                  (i==dx-quan*num+12*quan+6&&j==dy-quan*num+16*quan+8)||(i==dx-quan*num+14*quan+7&&j==dy-quan*num+16*quan+8))){
+                var sumR = 0;
+                var sumG = 0;
+                var sumB = 0;
+                for(var x = -quan;x<=quan;x++){
+                    for(var y = -quan;y<=quan;y++){
+                      var xx = i+x;
+                      var yy = j+y;
+                      var pp = yy*canvas.width+xx;
+                      sumR += originalPxData[pp*4+0];
+                      sumG += originalPxData[pp*4+1];
+                      sumB += originalPxData[pp*4+2];
+                    }
+                }
+
+                var totlal = (2*quan+1)*(2*quan+1);
+                var avgR = sumR/totlal;
+                var avgG = sumG/totlal;
+                var avgB = sumB/totlal;
+
+                for(var x = -quan;x<=quan;x++){
+                  for(var y = -quan;y<=quan;y++){
+                    var xx = i+x;
+                    var yy = j+y;
+                    var pp = yy*canvas.width+xx;
+                    modifyPxData[pp*4+0] = avgR;
+                    modifyPxData[pp*4+1] = avgG;
+                    modifyPxData[pp*4+2] = avgB;
+                  }
+                }
+              }
+            }
+            }
+            context.putImageData(modifyImgData,0,0,0,0,canvas.width,canvas.height);
+          }
+    });
+    $(document).on('dragenter', function (e){
+        e.stopPropagation();
+        e.preventDefault();
+        $('#dragandrophandler').removeClass('over');
+
+    });
+    $(document).on('dragover', function (e){
+      e.stopPropagation();
+      e.preventDefault();
+      $('#dragandrophandler').removeClass('over');
+
+    });
+    $(document).on('drop', function (e){
+        e.stopPropagation();
+        e.preventDefault();
+        $('#dragandrophandler').removeClass('over');
+    });
+  </script>
+</html>
